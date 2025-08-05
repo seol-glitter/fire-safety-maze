@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>화재 대피 미로 게임</title>
+<style>
+  body { margin:0; display:flex; justify-content:center; align-items:center; height:100vh; background:#000; }
+  #gameArea { position:relative; width:902px; height:487px; 
+              background:url("https://drive.google.com/uc?export=view&id=1UizQ489ByzWn0zpOPPhCTQve3-oV9ww3") no-repeat center/cover; }
+  #player { position:absolute; width:50px; height:50px; top:10px; left:10px; 
+            background:url("https://drive.google.com/uc?export=view&id=1Y5vwGO3RpJ7Ht9EbVw_T7Kq-qDxpDxP5") no-repeat center/contain; }
+  #exit { position:absolute; width:70px; height:70px; bottom:10px; right:10px; 
+          background:url("https://drive.google.com/uc?export=view&id=1PX6c9CLaoToYvYHLZEoBtXcW4DqMn6OS") no-repeat center/contain; }
+</style>
+</head>
+<body>
+<div id="gameArea">
+  <div id="player"></div>
+  <div id="exit"></div>
+</div>
+
+<script>
+// 요소 가져오기
+const player = document.getElementById('player');
+const exit = document.getElementById('exit');
+const gameArea = document.getElementById('gameArea');
+let dragging = false, offsetX, offsetY;
+let lastX = 10, lastY = 10;
+
+// 충돌 캔버스
+const collisionCanvas = document.createElement("canvas");
+collisionCanvas.width = 902;
+collisionCanvas.height = 487;
+const ctx = collisionCanvas.getContext("2d");
+const mazeImg = new Image();
+mazeImg.src = "https://drive.google.com/uc?export=view&id=1UizQ489ByzWn0zpOPPhCTQve3-oV9ww3";
+mazeImg.onload = ()=> ctx.drawImage(mazeImg,0,0);
+
+player.addEventListener('touchstart', e=>{
+  dragging = true;
+  offsetX = e.touches[0].clientX - player.offsetLeft;
+  offsetY = e.touches[0].clientY - player.offsetTop;
+});
+document.addEventListener('touchmove', e=>{
+  if(!dragging) return;
+  let x = e.touches[0].clientX - offsetX;
+  let y = e.touches[0].clientY - offsetY;
+
+  // 이동 경계
+  x = Math.max(0, Math.min(x, gameArea.clientWidth - player.clientWidth));
+  y = Math.max(0, Math.min(y, gameArea.clientHeight - player.clientHeight));
+
+  // 충돌 판정
+  const imageData = ctx.getImageData(x+25, y+25, 1, 1);
+  const [r,g,b] = imageData.data;
+  if(r>200 && g<150 && b<150){ // 분홍색 근처
+    player.style.left = lastX + "px";
+    player.style.top = lastY + "px";
+    return;
+  }
+
+  player.style.left = x + "px";
+  player.style.top = y + "px";
+  lastX = x; lastY = y;
+
+  // 도착 판정
+  const pRect = player.getBoundingClientRect();
+  const eRect = exit.getBoundingClientRect();
+  if(!(pRect.right < eRect.left || pRect.left > eRect.right || 
+       pRect.bottom < eRect.top || pRect.top > eRect.bottom)){
+    alert("성공! 안전하게 도착했어요!");
+  }
+});
+document.addEventListener('touchend', ()=> dragging=false);
+</script>
+</body>
+</html>
