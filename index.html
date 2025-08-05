@@ -7,7 +7,7 @@
 <style>
   body { margin:0; display:flex; justify-content:center; align-items:center; height:100vh; background:#000; }
   #gameArea { position:relative; width:902px; height:487px; 
-              background:url("미로예시.jpg") no-repeat center/cover; }
+              background:url("maze.jpg") no-repeat center/cover; }
   #player { position:absolute; width:50px; height:50px; top:10px; left:10px; 
             background:url("running.png") no-repeat center/contain; }
   #exit { position:absolute; width:70px; height:70px; bottom:10px; right:10px; 
@@ -20,13 +20,63 @@
   <div id="exit"></div>
 </div>
 
+<canvas id="collisionCanvas" width="902" height="487" style="display:none;"></canvas>
+
 <script>
 const player = document.getElementById('player');
 const exit = document.getElementById('exit');
 const gameArea = document.getElementById('gameArea');
+const collisionCanvas = document.getElementById('collisionCanvas');
+const ctx = collisionCanvas.getContext('2d');
 let dragging = false, offsetX, offsetY;
 let lastX = 10, lastY = 10;
 
+// 배경을 캔버스에 그려서 벽 색상 체크
+const mazeImg = new Image();
+mazeImg.src = "maze.jpg";
+mazeImg.onload = ()=> ctx.drawImage(mazeImg,0,0);
+
+function movePlayer(x, y) {
+  // 이동 경계
+  x = Math.max(0, Math.min(x, gameArea.clientWidth - player.clientWidth));
+  y = Math.max(0, Math.min(y, gameArea.clientHeight - player.clientHeight));
+
+  // 충돌 판정
+  const imageData = ctx.getImageData(x+25, y+25, 1, 1);
+  const [r,g,b] = imageData.data;
+  if(r>200 && g<150 && b<150){ // 분홍색 계열이면 충돌
+    player.style.left = lastX + "px";
+    player.style.top = lastY + "px";
+    return;
+  }
+
+  // 이동
+  player.style.left = x + "px";
+  player.style.top = y + "px";
+  lastX = x; lastY = y;
+
+  // 목표 도달 체크
+  const pRect = player.getBoundingClientRect();
+  const eRect = exit.getBoundingClientRect();
+  if(!(pRect.right < eRect.left || pRect.left > eRect.right || 
+       pRect.bottom < eRect.top || pRect.top > eRect.bottom)){
+    alert("성공! 안전하게 도착했어요!");
+  }
+}
+
+// PC: 마우스 이벤트
+player.addEventListener('mousedown', e=>{
+  dragging = true;
+  offsetX = e.clientX - player.offsetLeft;
+  offsetY = e.clientY - player.offsetTop;
+});
+document.addEventListener('mousemove', e=>{
+  if(!dragging) return;
+  movePlayer(e.clientX - offsetX, e.clientY - offsetY);
+});
+document.addEventListener('mouseup', ()=> dragging=false);
+
+// 모바일: 터치 이벤트
 player.addEventListener('touchstart', e=>{
   dragging = true;
   offsetX = e.touches[0].clientX - player.offsetLeft;
@@ -34,22 +84,7 @@ player.addEventListener('touchstart', e=>{
 });
 document.addEventListener('touchmove', e=>{
   if(!dragging) return;
-  let x = e.touches[0].clientX - offsetX;
-  let y = e.touches[0].clientY - offsetY;
-
-  x = Math.max(0, Math.min(x, gameArea.clientWidth - player.clientWidth));
-  y = Math.max(0, Math.min(y, gameArea.clientHeight - player.clientHeight));
-
-  player.style.left = x + "px";
-  player.style.top = y + "px";
-  lastX = x; lastY = y;
-
-  const pRect = player.getBoundingClientRect();
-  const eRect = exit.getBoundingClientRect();
-  if(!(pRect.right < eRect.left || pRect.left > eRect.right || 
-       pRect.bottom < eRect.top || pRect.top > eRect.bottom)){
-    alert("성공! 안전하게 도착했어요!");
-  }
+  movePlayer(e.touches[0].clientX - offsetX, e.touches[0].clientY - offsetY);
 });
 document.addEventListener('touchend', ()=> dragging=false);
 </script>
