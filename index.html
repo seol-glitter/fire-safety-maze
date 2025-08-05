@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>화재 대피 미로 게임</title>
+<style>
+  body { margin:0; display:flex; justify-content:center; align-items:center; background:#eee; }
+  #gameArea { 
+    position:relative; 
+    width:90vw; height:48vw;  /* 미로예시 비율 유지 */
+    max-width:900px; max-height:480px;
+    background:white; 
+    border:3px solid black; 
+    touch-action:none;
+    overflow:hidden;
+  }
+  .wall { position:absolute; background:lightcoral; }
+  #player { 
+    position:absolute; 
+    width:8vw; height:8vw; 
+    background:url("running.png") no-repeat center/contain; 
+    top:2%; left:2%;
+  }
+  #exit { 
+    position:absolute; 
+    width:10vw; height:10vw; 
+    background:url("exit.png") no-repeat center/contain; 
+    bottom:3%; right:3%;
+  }
+  .fire {
+    position:absolute; 
+    width:8vw; height:8vw;
+    background:url("fire.png") no-repeat center/contain;
+  }
+</style>
+</head>
+<body>
+<div id="gameArea">
+  <div id="player"></div>
+  <div id="exit"></div>
+
+  <!-- 미로예시 기반 벽 (대략 비율 맞춤) -->
+  <div class="wall" style="top:0; left:0; width:15%; height:40%;"></div>
+  <div class="wall" style="top:0; left:30%; width:15%; height:60%;"></div>
+  <div class="wall" style="top:0; left:60%; width:15%; height:30%;"></div>
+  <div class="wall" style="top:0; left:85%; width:15%; height:60%;"></div>
+  <div class="wall" style="top:45%; left:15%; width:20%; height:15%;"></div>
+  <div class="wall" style="top:65%; left:45%; width:15%; height:20%;"></div>
+  <div class="wall" style="top:35%; left:70%; width:15%; height:30%;"></div>
+  <div class="wall" style="top:70%; left:0; width:25%; height:15%;"></div>
+  <div class="wall" style="top:70%; left:75%; width:25%; height:15%;"></div>
+
+  <!-- 막다른 길 불꽃 -->
+  <div class="fire" style="top:20%; left:18%;"></div>
+  <div class="fire" style="top:55%; left:48%;"></div>
+  <div class="fire" style="top:75%; left:78%;"></div>
+</div>
+
+<script>
+const player = document.getElementById("player");
+const exit = document.getElementById("exit");
+const walls = document.querySelectorAll(".wall");
+const gameArea = document.getElementById("gameArea");
+
+let dragging = false, offsetX, offsetY;
+let x = gameArea.clientWidth*0.02, y = gameArea.clientHeight*0.02; 
+
+function canMove(newX, newY) {
+  player.style.left = newX + "px";
+  player.style.top = newY + "px";
+  const pRect = player.getBoundingClientRect();
+
+  for (const wall of walls) {
+    const wRect = wall.getBoundingClientRect();
+    if (!(pRect.right <= wRect.left || pRect.left >= wRect.right ||
+          pRect.bottom <= wRect.top || pRect.top >= wRect.bottom)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function movePlayer(newX, newY) {
+  const areaRect = gameArea.getBoundingClientRect();
+  newX = Math.max(0, Math.min(newX, areaRect.width - player.clientWidth));
+  newY = Math.max(0, Math.min(newY, areaRect.height - player.clientHeight));
+
+  if (canMove(newX, newY)) {
+    x = newX; y = newY;
+    player.style.left = x + "px";
+    player.style.top = y + "px";
+
+    const pRect = player.getBoundingClientRect();
+    const eRect = exit.getBoundingClientRect();
+    if (!(pRect.right < eRect.left || pRect.left > eRect.right ||
+          pRect.bottom < eRect.top || pRect.top > eRect.bottom)) {
+      alert("성공! 안전하게 도착했어요!");
+    }
+  } else {
+    player.style.left = x + "px";
+    player.style.top = y + "px";
+  }
+}
+
+// 마우스 드래그
+player.addEventListener("mousedown", e => {
+  dragging = true;
+  offsetX = e.clientX - player.offsetLeft;
+  offsetY = e.clientY - player.offsetTop;
+});
+document.addEventListener("mousemove", e => {
+  if (!dragging) return;
+  movePlayer(e.clientX - offsetX, e.clientY - offsetY);
+});
+document.addEventListener("mouseup", () => dragging = false);
+
+// 터치 드래그
+player.addEventListener("touchstart", e => {
+  dragging = true;
+  offsetX = e.touches[0].clientX - player.offsetLeft;
+  offsetY = e.touches[0].clientY - player.offsetTop;
+});
+document.addEventListener("touchmove", e => {
+  if (!dragging) return;
+  movePlayer(e.touches[0].clientX - offsetX, e.touches[0].clientY - offsetY);
+});
+document.addEventListener("touchend", () => dragging = false);
+</script>
+</body>
+</html>
