@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>화재 대피 미로 게임</title>
+<style>
+  body { margin:0; background:#000; display:flex; justify-content:center; align-items:center; height:100vh; }
+  #container { position:relative; width:100%; height:100%; }
+  #gameCanvas { display:block; width:100%; height:100%; }
+  #player, #exit {
+    position:absolute;
+    background-size:contain;
+    background-repeat:no-repeat;
+    transform:translate(-50%, -50%);
+    z-index:10;
+  }
+  #player { width:10%; height:10%; background-image:url("running.png"); }
+  #exit   { width:12%; height:12%; background-image:url("exit.png"); }
+</style>
+</head>
+<body>
+<div id="container">
+  <canvas id="gameCanvas"></canvas>
+  <div id="player"></div>
+  <div id="exit"></div>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const mazeImg = new Image();
+mazeImg.src = "maze.jpg";
+
+const player = document.getElementById("player");
+const exit = document.getElementById("exit");
+
+let dragging = false;
+let x = 40, y = 40; // 시작 좌표 (화면 기준)
+let exitX, exitY;
+
+// 화면 크기에 맞게 캔버스 리사이즈
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  ctx.drawImage(mazeImg, 0, 0, canvas.width, canvas.height);
+
+  // 출구를 화면 오른쪽 아래에 배치 (비율로)
+  exitX = canvas.width * 0.9;
+  exitY = canvas.height * 0.85;
+  updatePositions();
+}
+
+function updatePositions() {
+  player.style.left = x + "px";
+  player.style.top  = y + "px";
+  exit.style.left = exitX + "px";
+  exit.style.top  = exitY + "px";
+}
+
+function canMove(newX, newY) {
+  const pixel = ctx.getImageData(newX + player.offsetWidth/2, newY + player.offsetHeight/2, 1, 1).data;
+  return (pixel[0] > 240 && pixel[1] > 240 && pixel[2] > 240); // 흰색만 통과
+}
+
+function movePlayer(clientX, clientY) {
+  const newX = clientX - player.offsetWidth/2;
+  const newY = clientY - player.offsetHeight/2;
+
+  if (newX >= 0 && newY >= 0 &&
+      newX <= canvas.width - player.offsetWidth &&
+      newY <= canvas.height - player.offsetHeight) {
+    if (canMove(newX, newY)) {
+      x = newX; y = newY;
+      updatePositions();
+
+      const pRect = player.getBoundingClientRect();
+      const eRect = exit.getBoundingClientRect();
+      if (!(pRect.right < eRect.left || pRect.left > eRect.right ||
+            pRect.bottom < eRect.top || pRect.top > eRect.bottom)) {
+        alert("성공! 안전하게 도착했어요!");
+      }
+    }
+  }
+}
+
+player.addEventListener("mousedown", ()=> dragging=true);
+document.addEventListener("mousemove", e=>{ if(dragging) movePlayer(e.clientX, e.clientY); });
+document.addEventListener("mouseup", ()=> dragging=false);
+
+player.addEventListener("touchstart", ()=> dragging=true);
+document.addEventListener("touchmove", e=>{ if(dragging) movePlayer(e.touches[0].clientX, e.touches[0].clientY); });
+document.addEventListener("touchend", ()=> dragging=false);
+
+mazeImg.onload = resizeCanvas;
+window.addEventListener("resize", resizeCanvas);
+</script>
+</body>
+</html>
