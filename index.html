@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>화재 대피 미로 게임</title>
+<style>
+  :root{
+    --w: 96vw;      /* 미로 너비 */
+    --h: 64vh;      /* 미로 높이 (가로모드 기준) */
+  }
+  html,body{height:100%;margin:0;background:#0b1220;color:#0f172a;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",sans-serif}
+  .wrap{display:grid;place-items:center;min-height:100%}
+  .board{position:relative;width:var(--w);height:var(--h);background:#fff;border-radius:18px;box-shadow:0 14px 36px rgba(0,0,0,.35);overflow:hidden}
+  .maze-bg{position:absolute;inset:0;background-size:cover;background-position:center}
+  .exit,.goal{position:absolute;width:8%;aspect-ratio:1/1;transform:translate(-50%,-50%);filter:drop-shadow(0 4px 6px rgba(0,0,0,.2));user-select:none;pointer-events:none}
+  .exit.done{opacity:.3}
+  .goal{width:10%}
+  .runner{position:absolute;width:10%;aspect-ratio:1/1;transform:translate(-50%,-50%);touch-action:none;cursor:grab;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35))}
+  .hud{margin-top:14px;color:#e6f4ff;font-weight:700}
+  .btn{display:inline-block;margin-left:8px;padding:8px 12px;border-radius:10px;background:#16a34a;color:#fff;text-decoration:none;font-weight:800}
+  /* modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50}
+  .card{width:min(92vw,460px);background:#ffffff;border-radius:16px;padding:20px 18px;box-shadow:0 12px 32px rgba(0,0,0,.45)}
+  .card h2{margin:6px 0 12px;font-size:20px}
+  .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:10px}
+  .ghost{background:#e2e8f0;color:#111827}
+  /* accessibility outline */
+  .btn:focus-visible, .runner:focus-visible{outline:3px solid #22c55e;outline-offset:3px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="board" id="board" aria-label="미로 보드">
+    <!-- 배경 이미지 지정 -->
+    <div class="maze-bg" id="bg"></div>
+
+    <!-- EXIT 4개(갈림길) -->
+    <img class="exit" id="ex1" alt="EXIT" />
+    <img class="exit" id="ex2" alt="EXIT" />
+    <img class="exit" id="ex3" alt="EXIT" />
+    <img class="exit" id="ex4" alt="EXIT" />
+
+    <!-- 최종 골(큰 EXIT) -->
+    <img class="goal" id="goal" alt="GOAL" />
+
+    <!-- 러너 -->
+    <img class="runner" id="runner" alt="달리기 주인공" />
+  </div>
+
+  <div class="hud" aria-live="polite">
+    <span id="status">EXIT 0/4</span>
+    <a id="retry" class="btn ghost" href="#">처음으로</a>
+  </div>
+</div>
+
+<!-- 완료 모달 -->
+<div class="modal" id="finishModal" role="dialog" aria-modal="true" aria-labelledby="finishTitle">
+  <div class="card">
+    <h2 id="finishTitle">성공! 안전하게 도착했어요 🎉</h2>
+    <p id="finishDesc">다시 할까요? 또는 다음 단계로 진행할 수 있어요.</p>
+    <div class="actions">
+      <button class="btn ghost" id="btnAgain">처음부터</button>
+      <button class="btn" id="btnNext">다음 단계</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ====== 파일 경로(같은 폴더에 두세요) ====== */
+const FILES = {
+  level1_bg: "maze1,exit.png",
+  level2_bg: "maze2,exit.png",
+  exit:      "exit.png",
+  runner:    "running.png"
+};
+
+/* ====== 쿼리 파라미터 ====== */
+const qs    = new URLSearchParams(location.search);
+const TK    = qs.get('tk')    || "";                         // 교사키(있으면 캡쳐에 전달)
+const MODE  = (qs.get('mode') || "b").toLowerCase();         // a/b
+const PROB  = qs.get('problem') || "04_비상구로대피";         // 문제코드
+const RET   = qs.get('ret')   || "";                         // (옵션) 앱복귀 딥링크
+let LEVEL   = Number(qs.get('level')||1);                    // 1 또는 2
+
+/* ====== 요소 참조 ====== */
+const board  = document.getElementById('board');
+const bg     = document.getElementById('bg');
+const ex1    = document.getElementById('ex1');
+const ex2    = document.getElementById('ex2');
+const ex3    = document.getElementById('ex3');
+const ex4    = document.getElementById('ex4');
+const goal   = document.getElementById('goal');
+const runner = document.getElementById('runner');
+const statusEl = document.getElementById('status');
+const retry  = document.getElementById('retry');
+const modal  = document.getElementById('finishModal');
+const btnAgain = document.getElementById('btnAgain');
+const btnNext  = document.getElementById('btnNext');
+
+/* ====== 이미지 로드 ====== */
+[ex1,ex2,ex3,ex4,goal].forEach(i=>i.src=FILES.exit);
+runner.src = FILES.runner;
+
+/* ====== 배치 좌표(퍼센트) ====== */
+const POS_LV1 = {
+  runner: {x:8, y:88},
+  exit1 : {x:22, y:42},
+  exit2 : {x:48, y:22},
+  exit3 : {x:62, y:58},
+  exit4 : {x:38, y:72},
+  goal  : {x:92, y:10}
+};
+const POS_LV2 = {
+  runner: {x:6, y:86},
+  exit1 : {x:28, y:38},
+  exit2 : {x:53, y:30},
+  exit3 : {x:66, y:48},
+  exit4 : {x:84, y:72},
+  goal  : {x:94, y:12}
+};
+
+function place(el, p){ el.style.left = p.x+'%'; el.style.top = p.y+'%'; }
+function setLevel(level){
+  LEVEL = level;
+  const POS = level===1 ? POS_LV1 : POS_LV2;
+  bg.style.backgroundImage = `url('${level===1?FILES.level1_bg:FILES.level2_bg}')`;
+  place(runner, POS.runner);
+  place(ex1, POS.exit1);
+  place(ex2, POS.exit2);
+  place(ex3, POS.exit3);
+  place(ex4, POS.exit4);
+  place(goal, POS.goal);
+  exits.forEach(o=>{ o.hit=false; o.el.classList.remove('done'); });
+  updateStatus();
+}
+/* 초기 레벨 배치 */
+setLevel(LEVEL);
+
+/* ====== 간단한 '정답 사운드' (오디오 파일 없이 WebAudio) ====== */
+let audioCtx;
+function playCorrect(){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const now = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = "triangle";
+    o.frequency.setValueAtTime(880, now);
+    o.frequency.exponentialRampToValueAtTime(1760, now+0.18);
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.exponentialRampToValueAtTime(0.4, now+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now+0.22);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(now); o.stop(now+0.24);
+  }catch(e){ /* ignore */ }
+}
+
+/* ====== 충돌 유틸 ====== */
+function rect(el){ const r=el.getBoundingClientRect(); return {x:r.left,y:r.top,w:r.width,h:r.height}; }
+function isHit(a,b){ return !(a.x+a.w<b.x || b.x+b.w<a.x || a.y+a.h<b.y || b.y+b.h<a.y); }
+
+/* ==== EXIT 체크 ==== */
+const exits = [ex1,ex2,ex3,ex4].map(el=>({el, hit:false}));
+function checkExits(){
+  const r = rect(runner);
+  let count=0;
+  exits.forEach(o=>{
+    if(!o.hit && isHit(r, rect(o.el))){
+      o.hit = true;
+      o.el.classList.add('done');
+      playCorrect();
+    }
+    if(o.hit) count++;
+  });
+  return count;
+}
+function updateStatus(){
+  const c = exits.reduce((n,o)=>n+(o.hit?1:0),0);
+  const tail = LEVEL===2 ? " — 3개 이상 지나간 뒤 골까지 가세요" : "";
+  statusEl.textContent = `EXIT ${c}/4${tail}`;
+}
+
+/* ====== 완료 동작 ====== */
+function openCapture(){
+  const cap = 'https://seol-glitter.github.io/teacherhome/capture.html?'+
+    new URLSearchParams({problem:PROB, tk:TK, mode:MODE, ret:RET}).toString();
+  // 외부 브라우저를 기대하며 새창 시도; 막히면 같은 창 이동
+  const w = window.open(cap, '_blank', 'noopener');
+  if(!w || w.closed) location.href = cap;
+}
+function showFinishModal(){
+  modal.style.display = "flex";
+  btnAgain.focus();
+}
+btnAgain.addEventListener('click', ()=>{ modal.style.display='none'; setLevel(1); });
+btnNext.addEventListener('click',   ()=>{
+  modal.style.display='none';
+  setLevel(2);
+  // URL 질의에도 반영(북마크 편의)
+  const url = new URL(location.href);
+  url.searchParams.set('level','2');
+  history.replaceState(null,'',url);
+});
+
+/* ==== 골(완주) 판정 ==== */
+function maybeFinish(){
+  if(!isHit(rect(runner), rect(goal))) return;
+  const passed = checkExits();
+  if(LEVEL===1){
+    // 1단계는 골만 닿으면 성공 -> 모달
+    showFinishModal();
+  }else{
+    // 2단계는 EXIT 3개 이상 + 골 -> 캡쳐 페이지로 이동(브라우저 강제 열기 시도)
+    if(passed >= 3) openCapture();
+    else statusEl.textContent = `EXIT ${passed}/4 — 3개 이상 지나가면 탈출!`;
+  }
+}
+
+/* ==== 드래그(터치) 이동 ==== */
+let dragging=false, dx=0, dy=0;
+function onDown(ev){
+  const e = ev.touches? ev.touches[0] : ev;
+  const rc = runner.getBoundingClientRect();
+  dx = e.clientX - rc.left; dy = e.clientY - rc.top;
+  dragging = true; runner.style.cursor='grabbing';
+}
+function onMove(ev){
+  if(!dragging) return;
+  const e = ev.touches? ev.touches[0] : ev;
+  const bb = board.getBoundingClientRect();
+  // runner left/top = pointer - offset
+  let x = e.clientX - bb.left - dx + (runner.clientWidth/2);
+  let y = e.clientY - bb.top  - dy + (runner.clientHeight/2);
+  // 경계 보정
+  x = Math.max(0, Math.min(x, bb.width)); 
+  y = Math.max(0, Math.min(y, bb.height));
+  runner.style.left = (x/bb.width*100)+'%';
+  runner.style.top  = (y/bb.height*100)+'%';
+  const _ = checkExits();
+  updateStatus();
+  maybeFinish();
+}
+function onUp(){ dragging=false; runner.style.cursor='grab'; }
+
+runner.addEventListener('pointerdown', onDown);
+window.addEventListener('pointermove', onMove, {passive:false});
+window.addEventListener('pointerup', onUp);
+runner.addEventListener('touchstart', onDown, {passive:true});
+window.addEventListener('touchmove', onMove, {passive:false});
+window.addEventListener('touchend', onUp);
+retry.addEventListener('click', e=>{ e.preventDefault(); setLevel(1); });
+
+// 초기 상태 반영
+updateStatus();
+</script>
+</body>
+</html>
