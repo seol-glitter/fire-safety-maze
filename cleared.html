@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>성공 페이지</title>
+<body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif">
+  <div style="text-align:center">
+    <h1>성공!</h1>
+    <p>피난유도등을 따라 대피해요.</p>
+  </div>
+
+  <script>
+    // 주소 표준화(일부 엔진이 경로를 변형할 수 있어 정확 주소로 치환)
+    const EXACT = "https://seol-glitter.github.io/fire-safety-maze/cleared.html";
+    if (location.href !== EXACT) location.replace(EXACT);
+  </script>
+</body>
+</html>
